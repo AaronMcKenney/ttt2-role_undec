@@ -95,6 +95,25 @@ if SERVER then
 		print(weight_thresh_str)
 	end
 	
+	local function PunishTheNonVoter(ply)
+		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
+		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+		if mode == PUNISH_MODE.DEATH then
+			ply:Kill()
+		elseif mode == PUNISH_MODE.RAND then
+			ply:SetRole(ply.undec_ballot[math.random(#ply.undec_ballot)])
+			SendFullStateUpdate()
+		elseif mode == PUNISH_MODE.JES and ROLE_JESTER then
+			ply:SetRole(ROLE_JESTER)
+			SendFullStateUpdate()
+		else --PUNISH_MODE.INNO
+			ply:SetRole(ROLE_INNOCENT)
+			SendFullStateUpdate()
+		end
+		
+		ply.undec_ballot = nil
+	end
+	
 	local function CreateBallot(ply)
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
@@ -238,25 +257,6 @@ if SERVER then
 				PunishTheNonVoter(ply)
 			end
 		end)
-	end
-	
-	local function PunishTheNonVoter(ply)
-		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
-		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
-		if mode == PUNISH_MODE.DEATH then
-			ply:Kill()
-		elseif mode == PUNISH_MODE.RAND then
-			ply:SetRole(ply.undec_ballot[math.random(#ply.undec_ballot)])
-			SendFullStateUpdate()
-		elseif mode == PUNISH_MODE.JES and ROLE_JESTER then
-			ply:SetRole(ROLE_JESTER)
-			SendFullStateUpdate()
-		else --PUNISH_MODE.INNO
-			ply:SetRole(ROLE_INNOCENT)
-			SendFullStateUpdate()
-		end
-		
-		ply.undec_ballot = nil
 	end
 	
 	local function DestroyBallot(ply)
