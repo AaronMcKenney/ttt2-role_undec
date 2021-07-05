@@ -231,13 +231,13 @@ if SERVER then
 		return ballot
 	end
 	
-	local function PunishTheNonVoter(ply, ballot)
+	local function PunishTheNonVoter(ply)
 		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
 		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
 		if mode == PUNISH_MODE.DEATH then
 			ply:Kill()
 		elseif mode == PUNISH_MODE.RAND then
-			ply:SetRole(ballot[math.random(#ballot)])
+			ply:SetRole(ply.undec_ballot[math.random(#ply.undec_ballot)])
 			SendFullStateUpdate()
 		elseif mode == PUNISH_MODE.JES and ROLE_JESTER then
 			ply:SetRole(ROLE_JESTER)
@@ -246,13 +246,18 @@ if SERVER then
 			ply:SetRole(ROLE_INNOCENT)
 			SendFullStateUpdate()
 		end
+		
+		ply.undec_ballot = nil
 	end
 	
 	local function DestroyBallot(ply)
+		print("UNDEC_DEBUG DestroyBallot: Destroying ballot for " .. ply:GetName())
 		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
 		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
 			timer.Remove("UndecidedBallot_Server_" .. ply:SteamID64())
 		end
+		ply.undec_ballot = nil
+		
 		net.Start("TTT2UndecidedBallotResponse")
 		net.Send(ply)
 	end
@@ -263,22 +268,25 @@ if SERVER then
 			DestroyBallot(ply)
 		end
 		
-		local ballot = CreateBallot()
+		ply.undec_ballot = CreateBallot()
 		net.Start("TTT2UndecidedBallotRequest")
-		net.WriteTable(ballot)
+		net.WriteTable(ply.undec_ballot)
 		net.Send(ply)
 		
 		timer.Create("UndecidedBallot_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
-			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) then
-				PunishTheNonVoter(ply, ballot)
+			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot then
+				PunishTheNonVoter(ply)
 			end
 		end)
 	end
 	
 	net.Receive("TTT2UndecidedBallotResponse", function(len, ply)
 		local role_id = net.ReadInt(16)
-		ply:SetRole(role_id)
-		SendFullStateUpdate()
+		
+		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) and GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot and table.HasValue(ply.undec_ballot, role_id) then
+			ply:SetRole(role_id)
+			SendFullStateUpdate()
+		end
 		
 		DestroyBallot(ply)
 	end)
@@ -312,22 +320,33 @@ if CLIENT then
 		return role_str
 	end
 	
+	local function DestroyBallot()
+		local client = LocalPlayer()
+		print("UNDEC_DEBUG DestroyBallot: Destroying ballot for " .. client:GetName())
+		if timer.Exists("UndecidedBallot_Client") then
+			timer.Remove("UndecidedBallot_Client")
+		end
+		if client.undec_frame and client.undec_frame.Close then
+			client.undec_frame:Close()
+		end
+	end
+	
 	net.Receive("TTT2UndecidedBallotRequest", function()
+		local client = LocalPlayer()
 		local ballot = net.ReadTable()
-		local frame = vgui.Create("DFrame")
 		
-		--This timer exists just for UI purposes
+		DestroyBallot()
 		timer.Create("UndecidedBallot_Client", GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
-			frame:Close()
-			return
+			DestroyBallot()
 		end)
+		client.undec_frame = vgui.Create("DFrame")
 		
-		frame:SetTitle(LANG.TryTranslation("BALLOT_TITLE_" .. UNDECIDED.name))
-		frame:SetPos(5, ScrH() / 3)
-		frame:SetSize(150, 10 + (20 * (#ballot + 1)))
-		frame:SetVisible(true)
-		frame:SetDraggable(false)
-		frame:ShowCloseButton(false)
+		client.undec_frame:SetTitle(LANG.TryTranslation("BALLOT_TITLE_" .. UNDECIDED.name))
+		client.undec_frame:SetPos(5, ScrH() / 3)
+		client.undec_frame:SetSize(150, 10 + (20 * (#ballot + 1)))
+		client.undec_frame:SetVisible(true)
+		client.undec_frame:SetDraggable(false)
+		client.undec_frame:ShowCloseButton(false)
 		
 		if #ballot <= 0 then
 			LANG.Msg("BAD_BALLOT_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
@@ -338,7 +357,7 @@ if CLIENT then
 			local role_id = ballot[i]
 			local role_data = roles.GetByIndex(role_id)
 			local ballot_entry_str = GetBallotEntryStr(role_data)
-			local button = vgui.Create("DButton", frame)
+			local button = vgui.Create("DButton", client.undec_frame)
 			button:SetText(ballot_entry_str)
 			button:SetPos(0, 10 + (20 * i))
 			button:SetSize(150,20)
@@ -346,14 +365,12 @@ if CLIENT then
 				net.Start("TTT2UndecidedBallotResponse")
 				net.WriteInt(role_id, 16)
 				net.SendToServer()
+				DestroyBallot()
 			end
 		end
 	end)
 	
 	net.Receive("TTT2UndecidedBallotResponse", function()
-		if timer.Exists("UndecidedBallot_Client") then
-			--Adjust to 0 (instead of remove) so that the ballot GUI disappears
-			timer.Adjust("UndecidedBallot_Client", 0, nil, nil)
-		end
+		DestroyBallot()
 	end)
 end
