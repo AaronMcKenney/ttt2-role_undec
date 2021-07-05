@@ -287,7 +287,12 @@ if SERVER then
 		DestroyBallot(ply)
 		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_has_role_id then
 			if role_id ~= ply:GetSubRole() then
-				ply:SetRole(role_id)
+				if DOPPELGANGER and ply:GetTeam() == TEAM_DOPPELGANGER then
+					--An Undecided Doppelganger maintains their team throughout the transition.
+					ply:SetRole(role_id, TEAM_DOPPELGANGER)
+				else
+					ply:SetRole(role_id)
+				end
 				SendFullStateUpdate()
 			elseif role_id == ROLE_UNDECIDED then
 				--If the Undecided picks their own role, give them another ballot.
@@ -312,13 +317,13 @@ if CLIENT then
 		--In a few cases the client is lied to about the role that they have (Currently that's the Shinigami, Wrath, and Lycanthrope).
 		--For these cases, alter the string so that they along with the base Innocent appear as "Innocent*", to keep up that illusion.
 		local num_players = GetNumPlayers()
-		local shini_can_exist = (ROLE_SHINIGAMI and GetConVar("ttt_shinigami_enabled"):GetBool() and num_players >= GetConVar("ttt_shinigami_min_players"):GetInt())
-		local cloaked_wrath_can_exist = (ROLE_WRATH and GetConVar("ttt_wrath_enabled"):GetBool() and num_players >= GetConVar("ttt_wrath_min_players"):GetInt() and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool())
-		local cloaked_lyc_can_exist = (ROLE_LYCANTHROPE and GetConVar("ttt_lycanthrope_enabled"):GetBool() and num_players >= GetConVar("ttt_lycanthrope_min_players"):GetInt() and not GetConVar("ttt2_lyc_know_role"):GetBool())
+		local shini_can_exist = (SHINIGAMI and GetConVar("ttt_shinigami_enabled"):GetBool() and num_players >= GetConVar("ttt_shinigami_min_players"):GetInt())
+		local cloaked_wrath_can_exist = (WRATH and GetConVar("ttt_wrath_enabled"):GetBool() and num_players >= GetConVar("ttt_wrath_min_players"):GetInt() and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool())
+		local cloaked_lyc_can_exist = (LYCANTHROPE and GetConVar("ttt_lycanthrope_enabled"):GetBool() and num_players >= GetConVar("ttt_lycanthrope_min_players"):GetInt() and not GetConVar("ttt2_lyc_know_role"):GetBool())
 		if (role_data.index == ROLE_INNOCENT and (shini_can_exist or cloaked_wrath_can_exist or cloaked_lyc_can_exist)) or
-			(ROLE_SHINIGAMI and role_data.index == ROLE_SHINIGAMI) or
-			(ROLE_WRATH and role_data.index == ROLE_WRATH and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool()) or
-			(ROLE_LYCANTHROPE	and role_data.index == ROLE_LYCANTHROPE and not GetConVar("ttt2_lyc_know_role"):GetBool()) then
+			(SHINIGAMI and role_data.index == ROLE_SHINIGAMI) or
+			(WRATH and role_data.index == ROLE_WRATH and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool()) or
+			(LYCANTHROPE and role_data.index == ROLE_LYCANTHROPE and not GetConVar("ttt2_lyc_know_role"):GetBool()) then
 			role_str = "Innocent*"
 		end
 		
