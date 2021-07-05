@@ -1,0 +1,318 @@
+if SERVER then
+	AddCSLuaFile()
+	resource.AddFile("materials/vgui/ttt/dynamic/roles/icon_undec.vmt")
+	util.AddNetworkString("TTT2UndecidedBallotRequest")
+	util.AddNetworkString("TTT2UndecidedBallotResponse")
+end
+
+function ROLE:PreInitialize()
+	self.color = Color(205, 0, 205, 255)
+	self.abbr = "undec" -- abbreviation
+	
+	self.scoreKillsMultiplier = 1
+	self.scoreTeamKillsMultiplier = -8
+	
+	self.preventFindCredits = true
+	self.preventKillCredits = true
+	self.preventTraitorAloneCredits = true
+	
+	self.fallbackTable = {}
+	self.unknownTeam = true -- disables team voice chat.
+
+	self.defaultTeam = TEAM_NONE
+	self.preventWin = true -- Cannot win if they stand alone.
+
+	-- ULX ConVars
+	self.conVarData = {
+		pct = 0.13,
+		maximum = 1,
+		minPlayers = 6,
+		random = 30,
+		traitorButton = 0,
+		
+		credits = 0,
+		creditsTraitorKill = 0,
+		creditsTraitorDead = 0,
+		shopFallback = SHOP_DISABLED,
+		
+		togglable = true
+	}
+end
+
+--Punishment Mode Enum for failing to vote in time.
+PUNISH_MODE = {DEATH = 0, RAND = 1, INNO = 2, JES = 3}
+
+local function IsInSpecDM(ply)
+	if SpecDM and (ply.IsGhost and ply:IsGhost()) then
+		return true
+	end
+	
+	return false
+end
+
+if SERVER then
+	local function PrintRoleList(title, role_list)
+		local role_list_str = title .. ": ["
+		for i = 1, #role_list do
+			local role_data = roles.GetByIndex(role_list[i])
+			role_list_str = role_list_str .. role_data.name
+			if i < #role_list then
+				role_list_str = role_list_str .. ", "
+			end
+		end
+		role_list_str = role_list_str .. "]"
+		print(role_list_str)
+	end
+	
+	local function PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+		weight_thresh_str = "Weight Thresholds: "
+		if inno_weight > 0 then
+			weight_thresh_str = weight_thresh_str .. "Inno(<=" .. inno_weight .. ") "
+		end
+		if det_weight > 0 then
+			weight_thresh_str = weight_thresh_str .. "Det(<=" .. inno_weight + det_weight .. ") " 
+		end
+		if tra_weight > 0 then
+			weight_thresh_str = weight_thresh_str .. "Tra(<=" .. inno_weight + det_weight + tra_weight .. ") " 
+		end
+		if evil_weight > 0 then
+			weight_thresh_str = weight_thresh_str .. "Evil(<=" .. inno_weight + det_weight + tra_weight + evil_weight .. ") " 
+		end
+		if neut_weight > 0 then
+			weight_thresh_str = weight_thresh_str .. "Neut(<=" .. inno_weight + det_weight + tra_weight + evil_weight  + neut_weight .. ") " 
+		end
+		print(weight_thresh_str)
+	end
+	
+	local function CreateBallot()
+		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
+		local ballot = {}
+		
+		local num_choices = GetConVar("ttt2_undecided_num_choices"):GetInt()
+		local inno_weight = GetConVar("ttt2_undecided_weight_innocent"):GetInt()
+		local det_weight = GetConVar("ttt2_undecided_weight_detective"):GetInt()
+		local tra_weight = GetConVar("ttt2_undecided_weight_traitor"):GetInt()
+		local evil_weight = GetConVar("ttt2_undecided_weight_evil"):GetInt()
+		local neut_weight = GetConVar("ttt2_undecided_weight_neutral"):GetInt()
+		
+		local num_players = 0
+		for _, ply in ipairs(player.GetAll()) do
+			if not ply:IsSpec() and not IsInSpecDM(ply) then
+				num_players = num_players + 1
+			end
+		end
+		
+		local inno_role_list = {}
+		local det_role_list = {}
+		local tra_role_list = {}
+		local evil_role_list = {}
+		local neut_role_list = {}
+		local role_data_list = roles.GetList()
+		for i = 1, #role_data_list do
+			local role_data = role_data_list[i]
+			if role_data.notSelectable or role_data.index == ROLE_NONE then
+				--notSelectable is true for roles spawned under special circumstances, such as the Ravenous or the Graverobber.
+				--ROLE_NONE should not be messed with. It would be mildly funny if it were selectable, but would probably bug out the server.
+				continue
+			end
+			
+			--role_data.builtin will be true for INNOCENT and TRAITOR, which are always enabled.
+			local enabled = true
+			local min_players = 0
+			if not role_data.builtin then
+				enabled = GetConVar("ttt_" .. role_data.name .. "_enabled"):GetBool()
+				min_players = GetConVar("ttt_" .. role_data.name .. "_min_players"):GetInt()
+			end
+			if not enabled or min_players > num_players then
+				continue
+			end
+			
+			if role_data.defaultTeam == TEAM_INNOCENT and (role_data.index == ROLE_INNOCENT or role_data.baserole == ROLE_INNOCENT) then
+				inno_role_list[#inno_role_list + 1] = role_data.index
+			elseif role_data.defaultTeam == TEAM_INNOCENT and (role_data.index == ROLE_DETECTIVE or role_data.baserole == ROLE_DETECTIVE) then
+				det_role_list[#det_role_list + 1] = role_data.index
+			elseif role_data.defaultTeam == TEAM_TRAITOR then
+				tra_role_list[#tra_role_list + 1] = role_data.index
+			elseif role_data.defaultTeam ~= TEAM_NONE and role_data.defaultTeam ~= TEAM_INNOCENT and role_data.defaultTeam ~= TEAM_TRAITOR then
+				evil_role_list[#evil_role_list + 1] = role_data.index
+			else --Not an Innocent or Detective. Not on the Traitor Team. Either some esoteric role on TEAM_INNOCENT (ex. Bodyguard) or TEAM_NONE.
+				neut_role_list[#neut_role_list + 1] = role_data.index
+			end
+		end
+		
+		print("\nUNDEC_DEBUG CreateBallot:")
+		PrintRoleList("Innocent Role List", inno_role_list)
+		PrintRoleList("Detective Role List", det_role_list)
+		PrintRoleList("Traitor Role List", tra_role_list)
+		PrintRoleList("Evil Role List", evil_role_list)
+		PrintRoleList("Neutral Role List", neut_role_list)
+		
+		--If a role list is empty, then set the corresponding weight to 0 so that we don't waste a choice trying to pick a role from it.
+		if #inno_role_list <= 0 then
+			inno_weight = 0
+		end
+		if #det_role_list <= 0 then
+			det_weight = 0
+		end
+		if #tra_role_list <= 0 then
+			tra_weight = 0
+		end
+		if #evil_role_list <= 0 then
+			evil_weight = 0
+		end
+		if #neut_role_list <= 0 then
+			neut_weight = 0
+		end
+		
+		PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+		
+		local total_weight = inno_weight + det_weight + tra_weight + evil_weight + neut_weight
+		for i = 1, num_choices do
+			if total_weight <= 0 then
+				print("Total weight is 0!")
+				break
+			end
+			
+			--Each weight is a bucket. If the random number lands in the bucket, choose a random role from the corresponding list.
+			--ExtractRandomEntry both returns a random entry in the list and removes it.
+			local r = math.random(total_weight)
+			print("Choice " .. i .. ": r=" .. r)
+			if inno_weight > 0 and r <= inno_weight then
+				ballot[#ballot + 1] = table.ExtractRandomEntry(inno_role_list)
+				if #inno_role_list <= 0 then
+					total_weight = total_weight - inno_weight
+					inno_weight = 0
+					print("Innocent Role List is now empty!")
+					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+				end
+			elseif det_weight > 0 and r <= inno_weight + det_weight then
+				ballot[#ballot + 1] = table.ExtractRandomEntry(det_role_list)
+				if #det_role_list <= 0 then
+					total_weight = total_weight - det_weight
+					det_weight = 0
+					print("Detective Role List is now empty!")
+					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+				end
+			elseif tra_weight > 0 and r <= inno_weight + det_weight + tra_weight then
+				ballot[#ballot + 1] = table.ExtractRandomEntry(tra_role_list)
+				if #tra_role_list <= 0 then
+					total_weight = total_weight - tra_weight
+					tra_weight = 0
+					print("Traitor Role List is now empty!")
+					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+				end
+			elseif evil_weight > 0 and r <= inno_weight + det_weight + tra_weight + evil_weight then
+				ballot[#ballot + 1] = table.ExtractRandomEntry(evil_role_list)
+				if #evil_role_list <= 0 then
+					total_weight = total_weight - evil_weight
+					evil_weight = 0
+					print("Evil Role List is now empty!")
+					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+				end
+			else --r > inno_weight + det_weight + tra_weight + evil_weight
+				ballot[#ballot + 1] = table.ExtractRandomEntry(neut_role_list)
+				if #neut_role_list <= 0 then
+					total_weight = total_weight - neut_weight
+					neut_weight = 0
+					print("Neutral Role List is now empty!")
+					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+				end
+			end
+		end
+		
+		PrintRoleList("Ballot", ballot)
+		print("\n")
+		
+		return ballot
+	end
+	
+	local function PunishTheNonVoter(ply, ballot)
+		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
+		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+		if mode == PUNISH_MODE.DEATH then
+			ply:Kill()
+		elseif mode == PUNISH_MODE.RAND then
+			ply:SetRole(ballot[math.random(#ballot)])
+			SendFullStateUpdate()
+		elseif mode == PUNISH_MODE.JES and ROLE_JESTER then
+			ply:SetRole(ROLE_JESTER)
+			SendFullStateUpdate()
+		else --PUNISH_MODE.INNO
+			ply:SetRole(ROLE_INNOCENT)
+			SendFullStateUpdate()
+		end
+	end
+	
+	function ROLE:GiveRoleLoadout(ply, isRoleChange)
+		local ballot = CreateBallot()
+		net.Start("TTT2UndecidedBallotRequest")
+		net.WriteTable(ballot)
+		net.Send(ply)
+		
+		timer.Create("UndecidedBallot_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
+			if ply:GetSubRole() == ROLE_UNDECIDED and ply:Alive() and not IsInSpecDM(ply) then
+				PunishTheNonVoter(ply, ballot)
+			end
+		end)
+	end
+	
+	net.Receive("TTT2UndecidedBallotResponse", function(len, ply)
+		local role_id = net.ReadInt(16)
+		ply:SetRole(role_id)
+		SendFullStateUpdate()
+		
+		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
+		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
+			timer.Remove("UndecidedBallot_Server_" .. ply:SteamID64())
+		end
+		net.Start("TTT2UndecidedBallotResponse")
+		net.Send(ply)
+	end)
+end
+
+if CLIENT then
+	net.Receive("TTT2UndecidedBallotRequest", function()
+		local ballot = net.ReadTable()
+		local frame = vgui.Create("DFrame")
+		
+		--This timer exists just for UI purposes
+		timer.Create("UndecidedBallot_Client", GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
+			frame:Close()
+			return
+		end)
+		
+		frame:SetTitle(LANG.TryTranslation("BALLOT_TITLE_" .. UNDECIDED.name))
+		frame:SetPos(5, ScrH() / 3)
+		frame:SetSize(150, 10 + (20 * (#ballot + 1)))
+		frame:SetVisible(true)
+		frame:SetDraggable(false)
+		frame:ShowCloseButton(false)
+		
+		if #ballot <= 0 then
+			LANG.Msg("BAD_BALLOT_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+			return
+		end
+		
+		for i = 1, #ballot do
+			local role_id = ballot[i]
+			local role_data = roles.GetByIndex(role_id)
+			local role_str = LANG.TryTranslation(role_data.name)
+			local button = vgui.Create("DButton", frame)
+			button:SetText(role_str)
+			button:SetPos(0, 10 + (20 * i))
+			button:SetSize(150,20)
+			button.DoClick = function()
+				net.Start("TTT2UndecidedBallotResponse")
+				net.WriteInt(role_id, 16)
+				net.SendToServer()
+			end
+		end
+	end)
+	
+	net.Receive("TTT2UndecidedBallotResponse", function()
+		if timer.Exists("UndecidedBallot_Client") then
+			--Adjust to 0 (instead of remove) so that the ballot GUI disappears
+			timer.Adjust("UndecidedBallot_Client", 0, nil, nil)
+		end
+	end)
+end
