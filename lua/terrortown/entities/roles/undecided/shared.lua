@@ -95,7 +95,7 @@ if SERVER then
 		print(weight_thresh_str)
 	end
 	
-	local function CreateBallot()
+	local function CreateBallot(ply)
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
 		local num_players = GetNumPlayers()
@@ -228,7 +228,16 @@ if SERVER then
 		PrintRoleList("Ballot", ballot)
 		print("\n")
 		
-		return ballot
+		ply.undec_ballot = ballot
+		net.Start("TTT2UndecidedBallotRequest")
+		net.WriteTable(ply.undec_ballot)
+		net.Send(ply)
+		
+		timer.Create("UndecidedBallot_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
+			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot then
+				PunishTheNonVoter(ply)
+			end
+		end)
 	end
 	
 	local function PunishTheNonVoter(ply)
@@ -268,27 +277,23 @@ if SERVER then
 			DestroyBallot(ply)
 		end
 		
-		ply.undec_ballot = CreateBallot()
-		net.Start("TTT2UndecidedBallotRequest")
-		net.WriteTable(ply.undec_ballot)
-		net.Send(ply)
-		
-		timer.Create("UndecidedBallot_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
-			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot then
-				PunishTheNonVoter(ply)
-			end
-		end)
+		CreateBallot(ply)
 	end
 	
 	net.Receive("TTT2UndecidedBallotResponse", function(len, ply)
 		local role_id = net.ReadInt(16)
-		
-		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) and GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot and table.HasValue(ply.undec_ballot, role_id) then
-			ply:SetRole(role_id)
-			SendFullStateUpdate()
-		end
+		local ballot_has_role_id = (ply.undec_ballot and table.HasValue(ply.undec_ballot, role_id))
 		
 		DestroyBallot(ply)
+		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_has_role_id then
+			if role_id ~= ply:GetSubRole() then
+				ply:SetRole(role_id)
+				SendFullStateUpdate()
+			elseif role_id == ROLE_UNDECIDED then
+				--If the Undecided picks their own role, give them another ballot.
+				CreateBallot(ply)
+			end
+		end
 	end)
 	
 	hook.Add("TTTEndRound", "TTTEndRoundUndecided", function()
