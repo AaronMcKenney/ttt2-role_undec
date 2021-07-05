@@ -252,7 +252,7 @@ if SERVER then
 		net.WriteTable(ply.undec_ballot)
 		net.Send(ply)
 		
-		timer.Create("UndecidedBallot_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
+		timer.Create("UndecidedBallotTimer_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
 			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot then
 				PunishTheNonVoter(ply)
 			end
@@ -262,8 +262,8 @@ if SERVER then
 	local function DestroyBallot(ply)
 		print("UNDEC_DEBUG DestroyBallot: Destroying ballot for " .. ply:GetName())
 		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
-		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
-			timer.Remove("UndecidedBallot_Server_" .. ply:SteamID64())
+		if timer.Exists("UndecidedBallotTimer_Server_" .. ply:SteamID64()) then
+			timer.Remove("UndecidedBallotTimer_Server_" .. ply:SteamID64())
 		end
 		ply.undec_ballot = nil
 		
@@ -272,7 +272,7 @@ if SERVER then
 	end
 	
 	function ROLE:GiveRoleLoadout(ply, isRoleChange)
-		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
+		if timer.Exists("UndecidedBallotTimer_Server_" .. ply:SteamID64()) then
 			--Recreate the ballot if the player somehow becomes Undecided multiple times in quick succession.
 			DestroyBallot(ply)
 		end
@@ -333,12 +333,13 @@ if CLIENT then
 	local function DestroyBallot()
 		local client = LocalPlayer()
 		print("UNDEC_DEBUG DestroyBallot: Destroying ballot for " .. client:GetName())
-		if timer.Exists("UndecidedBallot_Client") then
-			timer.Remove("UndecidedBallot_Client")
+		if timer.Exists("UndecidedBallotTimer_Client") then
+			timer.Remove("UndecidedBallotTimer_Client")
 		end
 		if client.undec_frame and client.undec_frame.Close then
 			client.undec_frame:Close()
 		end
+		hook.Remove("Think", "UndecidedThink")
 	end
 	
 	net.Receive("TTT2UndecidedBallotRequest", function()
@@ -346,12 +347,12 @@ if CLIENT then
 		local ballot = net.ReadTable()
 		
 		DestroyBallot()
-		timer.Create("UndecidedBallot_Client", GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
+		timer.Create("UndecidedBallotTimer_Client", GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
 			DestroyBallot()
 		end)
 		client.undec_frame = vgui.Create("DFrame")
 		
-		client.undec_frame:SetTitle(LANG.TryTranslation("BALLOT_TITLE_" .. UNDECIDED.name))
+		client.undec_frame:SetTitle(LANG.TryTranslation("BALLOT_TITLE_" .. UNDECIDED.name) .. " (" .. math.ceil(math.abs(timer.TimeLeft("UndecidedBallotTimer_Client"))) .. ")")
 		client.undec_frame:SetPos(5, ScrH() / 3)
 		client.undec_frame:SetSize(150, 10 + (20 * (#ballot + 1)))
 		client.undec_frame:SetVisible(true)
@@ -378,6 +379,13 @@ if CLIENT then
 				DestroyBallot()
 			end
 		end
+		
+		hook.Add("Think", "UndecidedThink", function()
+			local client = LocalPlayer()
+			if client.undec_frame and client.undec_frame.SetTitle and timer.Exists("UndecidedBallotTimer_Client") then
+				client.undec_frame:SetTitle(LANG.TryTranslation("BALLOT_TITLE_" .. UNDECIDED.name) .. " (" .. math.ceil(math.abs(timer.TimeLeft("UndecidedBallotTimer_Client"))) .. ")")
+			end
+		end)
 	end)
 	
 	net.Receive("TTT2UndecidedBallotResponse", function()
