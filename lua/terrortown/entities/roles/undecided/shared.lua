@@ -248,14 +248,28 @@ if SERVER then
 		end
 	end
 	
+	local function DestroyBallot(ply)
+		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
+		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
+			timer.Remove("UndecidedBallot_Server_" .. ply:SteamID64())
+		end
+		net.Start("TTT2UndecidedBallotResponse")
+		net.Send(ply)
+	end
+	
 	function ROLE:GiveRoleLoadout(ply, isRoleChange)
+		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
+			--Recreate the ballot if the player somehow becomes Undecided multiple times in quick succession.
+			DestroyBallot(ply)
+		end
+		
 		local ballot = CreateBallot()
 		net.Start("TTT2UndecidedBallotRequest")
 		net.WriteTable(ballot)
 		net.Send(ply)
 		
 		timer.Create("UndecidedBallot_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
-			if ply:GetSubRole() == ROLE_UNDECIDED and ply:Alive() and not IsInSpecDM(ply) then
+			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) then
 				PunishTheNonVoter(ply, ballot)
 			end
 		end)
@@ -266,12 +280,15 @@ if SERVER then
 		ply:SetRole(role_id)
 		SendFullStateUpdate()
 		
-		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
-		if timer.Exists("UndecidedBallot_Server_" .. ply:SteamID64()) then
-			timer.Remove("UndecidedBallot_Server_" .. ply:SteamID64())
+		DestroyBallot(ply)
+	end)
+	
+	hook.Add("TTTEndRound", "TTTEndRoundUndecided", function()
+		--Remove the ballot for everyone so that it doesn't show up next round.
+		--Do this for everyone as they may have changed roles while the ballot is up.
+		for _, ply in ipairs(player.GetAll()) do
+			DestroyBallot(ply)
 		end
-		net.Start("TTT2UndecidedBallotResponse")
-		net.Send(ply)
 	end)
 end
 
