@@ -50,6 +50,17 @@ local function IsInSpecDM(ply)
 	return false
 end
 
+local function GetNumPlayers()
+	local num_players = 0
+	for _, ply in ipairs(player.GetAll()) do
+		if not ply:IsSpec() and not IsInSpecDM(ply) then
+			num_players = num_players + 1
+		end
+	end
+	
+	return num_players
+end
+
 if SERVER then
 	local function PrintRoleList(title, role_list)
 		local role_list_str = title .. ": ["
@@ -87,6 +98,7 @@ if SERVER then
 	local function CreateBallot()
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
+		local num_players = GetNumPlayers()
 		
 		local num_choices = GetConVar("ttt2_undecided_num_choices"):GetInt()
 		local inno_weight = GetConVar("ttt2_undecided_weight_innocent"):GetInt()
@@ -94,13 +106,6 @@ if SERVER then
 		local tra_weight = GetConVar("ttt2_undecided_weight_traitor"):GetInt()
 		local evil_weight = GetConVar("ttt2_undecided_weight_evil"):GetInt()
 		local neut_weight = GetConVar("ttt2_undecided_weight_neutral"):GetInt()
-		
-		local num_players = 0
-		for _, ply in ipairs(player.GetAll()) do
-			if not ply:IsSpec() and not IsInSpecDM(ply) then
-				num_players = num_players + 1
-			end
-		end
 		
 		local inno_role_list = {}
 		local det_role_list = {}
@@ -271,6 +276,25 @@ if SERVER then
 end
 
 if CLIENT then
+	local function GetBallotEntryStr(role_data)
+		local role_str = LANG.TryTranslation(role_data.name)
+		
+		--In a few cases the client is lied to about the role that they have (Currently that's the Shinigami, Wrath, and Lycanthrope).
+		--For these cases, alter the string so that they along with the base Innocent appear as "Innocent*", to keep up that illusion.
+		local num_players = GetNumPlayers()
+		local shini_can_exist = (ROLE_SHINIGAMI and GetConVar("ttt_shinigami_enabled"):GetBool() and num_players >= GetConVar("ttt_shinigami_min_players"):GetInt())
+		local cloaked_wrath_can_exist = (ROLE_WRATH and GetConVar("ttt_wrath_enabled"):GetBool() and num_players >= GetConVar("ttt_wrath_min_players"):GetInt() and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool())
+		local cloaked_lyc_can_exist = (ROLE_LYCANTHROPE and GetConVar("ttt_lycanthrope_enabled"):GetBool() and num_players >= GetConVar("ttt_lycanthrope_min_players"):GetInt() and not GetConVar("ttt2_lyc_know_role"):GetBool())
+		if (role_data.index == ROLE_INNOCENT and (shini_can_exist or cloaked_wrath_can_exist or cloaked_lyc_can_exist)) or
+			(ROLE_SHINIGAMI and role_data.index == ROLE_SHINIGAMI) or
+			(ROLE_WRATH and role_data.index == ROLE_WRATH and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool()) or
+			(ROLE_LYCANTHROPE	and role_data.index == ROLE_LYCANTHROPE and not GetConVar("ttt2_lyc_know_role"):GetBool()) then
+			role_str = "Innocent*"
+		end
+		
+		return role_str
+	end
+	
 	net.Receive("TTT2UndecidedBallotRequest", function()
 		local ballot = net.ReadTable()
 		local frame = vgui.Create("DFrame")
@@ -296,9 +320,9 @@ if CLIENT then
 		for i = 1, #ballot do
 			local role_id = ballot[i]
 			local role_data = roles.GetByIndex(role_id)
-			local role_str = LANG.TryTranslation(role_data.name)
+			local ballot_entry_str = GetBallotEntryStr(role_data)
 			local button = vgui.Create("DButton", frame)
-			button:SetText(role_str)
+			button:SetText(ballot_entry_str)
 			button:SetPos(0, 10 + (20 * i))
 			button:SetSize(150,20)
 			button.DoClick = function()
