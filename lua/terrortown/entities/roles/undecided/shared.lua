@@ -301,6 +301,13 @@ if SERVER then
 		end
 	end)
 	
+	hook.Add("TTT2PostPlayerDeath", "TTT2PostPlayerDeathUndecided", function(victim, inflictor, attacker)
+		if GetRoundState() == ROUND_ACTIVE and IsValid(victim) and victim:IsPlayer() and victim.undec_ballot then
+			--Note: A new ballot is created should the Undecided respawn via GiveRoleLoadout.
+			DestroyBallot(victim)
+		end
+	end)
+	
 	hook.Add("TTTEndRound", "TTTEndRoundUndecided", function()
 		--Remove the ballot for everyone so that it doesn't show up next round.
 		--Do this for everyone as they may have changed roles while the ballot is up.
