@@ -20,8 +20,9 @@ function ROLE:PreInitialize()
 	self.unknownTeam = true -- disables team voice chat.
 
 	self.defaultTeam = TEAM_NONE
-	self.preventWin = true -- Cannot win if they stand alone.
-
+	--Prevent the game from ending while the Undecided is in play to give them an opportunity to choose a role that could change the outcome of the game.
+	self.preventWin = false
+	
 	-- ULX ConVars
 	self.conVarData = {
 		pct = 0.13,
