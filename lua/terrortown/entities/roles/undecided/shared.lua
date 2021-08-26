@@ -42,6 +42,8 @@ end
 
 --Punishment Mode Enum for failing to vote in time.
 PUNISH_MODE = {DEATH = 0, RAND = 1, INNO = 2, JES = 3}
+--Cached variable, used if someone becomes Undecided in the middle of a round
+local NUM_PLYS_AT_ROUND_BEGIN = 0
 
 local function IsInSpecDM(ply)
 	if SpecDM and (ply.IsGhost and ply:IsGhost()) then
@@ -52,6 +54,10 @@ local function IsInSpecDM(ply)
 end
 
 local function GetNumPlayers()
+	if NUM_PLYS_AT_ROUND_BEGIN > 0 then
+		return NUM_PLYS_AT_ROUND_BEGIN
+	end
+	
 	local num_players = 0
 	for _, ply in ipairs(player.GetAll()) do
 		if not ply:IsSpec() and not IsInSpecDM(ply) then
@@ -61,6 +67,52 @@ local function GetNumPlayers()
 	
 	return num_players
 end
+
+local function DestroyBallot(ply)
+	if SERVER then
+		print("UNDEC_DEBUG DestroyBallot(SERVER): Destroying ballot for " .. ply:GetName())
+		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
+		if timer.Exists("UndecidedBallotTimer_Server_" .. ply:SteamID64()) then
+			timer.Remove("UndecidedBallotTimer_Server_" .. ply:SteamID64())
+		end
+		ply.undec_ballot = nil
+		
+		net.Start("TTT2UndecidedBallotResponse")
+		net.Send(ply)
+	else --CLIENT
+		local client = LocalPlayer()
+		print("UNDEC_DEBUG DestroyBallot(CLIENT): Destroying ballot for " .. client:GetName())
+		if timer.Exists("UndecidedBallotTimer_Client") then
+			timer.Remove("UndecidedBallotTimer_Client")
+		end
+		if client.undec_frame and client.undec_frame.Close then
+			client.undec_frame:Close()
+		end
+		hook.Remove("Think", "UndecidedThink")
+	end
+end
+
+hook.Add("TTTBeginRound", "TTTBeginRoundUndecided", function()
+	--Note: This is for when someone becomes an Undecided in the middle of a round.
+	--Roles are assigned before BeginRound, so NUM_PLYS_AT_ROUND_BEGIN won't be used for undecideds at the start of the game.
+	NUM_PLYS_AT_ROUND_BEGIN = GetNumPlayers()
+end)
+
+local function DestroyLeftoverBallots()
+	if SERVER then
+		--Remove the ballot for everyone so that it doesn't show up next round.
+		--Do this for everyone as they may have changed roles while the ballot is up.
+		--Don't do this in the TTTBeginRound hook, as that will immediately destroy the ballots of players who spawn as Undecided.
+		for _, ply in ipairs(player.GetAll()) do
+			DestroyBallot(ply)
+		end
+	end
+	
+	--Reset NUM_PLYS_AT_ROUND_BEGIN, as players may join/leave the server between now and the next TTTBeginRound
+	NUM_PLYS_AT_ROUND_BEGIN = 0
+end
+hook.Add("TTTPrepareRound", "TTTPrepareRoundUndecided", DestroyLeftoverBallots)
+hook.Add("TTTEndRound", "TTTEndRoundUndecided", DestroyLeftoverBallots)
 
 if SERVER then
 	local function PrintRoleList(title, role_list)
@@ -118,7 +170,7 @@ if SERVER then
 	local function CreateBallot(ply)
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
-		local num_players = GetNumPlayers()
+		local num_plys = GetNumPlayers()
 		
 		local num_choices = GetConVar("ttt2_undecided_num_choices"):GetInt()
 		local inno_weight = GetConVar("ttt2_undecided_weight_innocent"):GetInt()
@@ -148,7 +200,7 @@ if SERVER then
 				enabled = GetConVar("ttt_" .. role_data.name .. "_enabled"):GetBool()
 				min_players = GetConVar("ttt_" .. role_data.name .. "_min_players"):GetInt()
 			end
-			if not enabled or min_players > num_players then
+			if not enabled or min_players > num_plys then
 				continue
 			end
 			
@@ -260,18 +312,6 @@ if SERVER then
 		end)
 	end
 	
-	local function DestroyBallot(ply)
-		print("UNDEC_DEBUG DestroyBallot: Destroying ballot for " .. ply:GetName())
-		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
-		if timer.Exists("UndecidedBallotTimer_Server_" .. ply:SteamID64()) then
-			timer.Remove("UndecidedBallotTimer_Server_" .. ply:SteamID64())
-		end
-		ply.undec_ballot = nil
-		
-		net.Start("TTT2UndecidedBallotResponse")
-		net.Send(ply)
-	end
-	
 	function ROLE:GiveRoleLoadout(ply, isRoleChange)
 		if timer.Exists("UndecidedBallotTimer_Server_" .. ply:SteamID64()) then
 			--Recreate the ballot if the player somehow becomes Undecided multiple times in quick succession.
@@ -308,14 +348,6 @@ if SERVER then
 			DestroyBallot(victim)
 		end
 	end)
-	
-	hook.Add("TTTEndRound", "TTTEndRoundUndecided", function()
-		--Remove the ballot for everyone so that it doesn't show up next round.
-		--Do this for everyone as they may have changed roles while the ballot is up.
-		for _, ply in ipairs(player.GetAll()) do
-			DestroyBallot(ply)
-		end
-	end)
 end
 
 if CLIENT then
@@ -324,6 +356,7 @@ if CLIENT then
 		
 		--In a few cases the client is lied to about the role that they have (Currently that's the Shinigami, Wrath, and Lycanthrope).
 		--For these cases, alter the string so that they along with the base Innocent appear as "Innocent*", to keep up that illusion.
+		--Theoretically, someone could hack this on the client side to bypass the illusion, but I don't think it's that big of a deal.
 		local num_players = GetNumPlayers()
 		local shini_can_exist = (SHINIGAMI and GetConVar("ttt_shinigami_enabled"):GetBool() and num_players >= GetConVar("ttt_shinigami_min_players"):GetInt())
 		local cloaked_wrath_can_exist = (WRATH and GetConVar("ttt_wrath_enabled"):GetBool() and num_players >= GetConVar("ttt_wrath_min_players"):GetInt() and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool())
@@ -336,18 +369,6 @@ if CLIENT then
 		end
 		
 		return role_str
-	end
-	
-	local function DestroyBallot()
-		local client = LocalPlayer()
-		print("UNDEC_DEBUG DestroyBallot: Destroying ballot for " .. client:GetName())
-		if timer.Exists("UndecidedBallotTimer_Client") then
-			timer.Remove("UndecidedBallotTimer_Client")
-		end
-		if client.undec_frame and client.undec_frame.Close then
-			client.undec_frame:Close()
-		end
-		hook.Remove("Think", "UndecidedThink")
 	end
 	
 	net.Receive("TTT2UndecidedBallotRequest", function()
