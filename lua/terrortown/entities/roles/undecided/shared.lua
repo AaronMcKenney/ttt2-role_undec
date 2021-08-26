@@ -70,7 +70,7 @@ end
 
 local function DestroyBallot(ply)
 	if SERVER then
-		print("UNDEC_DEBUG DestroyBallot(SERVER): Destroying ballot for " .. ply:GetName())
+		--print("UNDEC_DEBUG DestroyBallot(SERVER): Destroying ballot for " .. ply:GetName())
 		--Remove the timer now that the player's no longer an Undecided, and tell the client to also remove their timer.
 		if timer.Exists("UndecidedBallotTimer_Server_" .. ply:SteamID64()) then
 			timer.Remove("UndecidedBallotTimer_Server_" .. ply:SteamID64())
@@ -81,7 +81,7 @@ local function DestroyBallot(ply)
 		net.Send(ply)
 	else --CLIENT
 		local client = LocalPlayer()
-		print("UNDEC_DEBUG DestroyBallot(CLIENT): Destroying ballot for " .. client:GetName())
+		--print("UNDEC_DEBUG DestroyBallot(CLIENT): Destroying ballot for " .. client:GetName())
 		if timer.Exists("UndecidedBallotTimer_Client") then
 			timer.Remove("UndecidedBallotTimer_Client")
 		end
@@ -115,38 +115,39 @@ hook.Add("TTTPrepareRound", "TTTPrepareRoundUndecided", DestroyLeftoverBallots)
 hook.Add("TTTEndRound", "TTTEndRoundUndecided", DestroyLeftoverBallots)
 
 if SERVER then
-	local function PrintRoleList(title, role_list)
-		local role_list_str = title .. ": ["
-		for i = 1, #role_list do
-			local role_data = roles.GetByIndex(role_list[i])
-			role_list_str = role_list_str .. role_data.name
-			if i < #role_list then
-				role_list_str = role_list_str .. ", "
-			end
-		end
-		role_list_str = role_list_str .. "]"
-		print(role_list_str)
-	end
-	
-	local function PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
-		weight_thresh_str = "Weight Thresholds: "
-		if inno_weight > 0 then
-			weight_thresh_str = weight_thresh_str .. "Inno(<=" .. inno_weight .. ") "
-		end
-		if det_weight > 0 then
-			weight_thresh_str = weight_thresh_str .. "Det(<=" .. inno_weight + det_weight .. ") " 
-		end
-		if tra_weight > 0 then
-			weight_thresh_str = weight_thresh_str .. "Tra(<=" .. inno_weight + det_weight + tra_weight .. ") " 
-		end
-		if evil_weight > 0 then
-			weight_thresh_str = weight_thresh_str .. "Evil(<=" .. inno_weight + det_weight + tra_weight + evil_weight .. ") " 
-		end
-		if neut_weight > 0 then
-			weight_thresh_str = weight_thresh_str .. "Neut(<=" .. inno_weight + det_weight + tra_weight + evil_weight  + neut_weight .. ") " 
-		end
-		print(weight_thresh_str)
-	end
+	--Print statements for UNDEC_DEBUG
+	--local function PrintRoleList(title, role_list)
+	--	local role_list_str = title .. ": ["
+	--	for i = 1, #role_list do
+	--		local role_data = roles.GetByIndex(role_list[i])
+	--		role_list_str = role_list_str .. role_data.name
+	--		if i < #role_list then
+	--			role_list_str = role_list_str .. ", "
+	--		end
+	--	end
+	--	role_list_str = role_list_str .. "]"
+	--	print(role_list_str)
+	--end
+	--
+	--local function PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+	--	weight_thresh_str = "Weight Thresholds: "
+	--	if inno_weight > 0 then
+	--		weight_thresh_str = weight_thresh_str .. "Inno(<=" .. inno_weight .. ") "
+	--	end
+	--	if det_weight > 0 then
+	--		weight_thresh_str = weight_thresh_str .. "Det(<=" .. inno_weight + det_weight .. ") " 
+	--	end
+	--	if tra_weight > 0 then
+	--		weight_thresh_str = weight_thresh_str .. "Tra(<=" .. inno_weight + det_weight + tra_weight .. ") " 
+	--	end
+	--	if evil_weight > 0 then
+	--		weight_thresh_str = weight_thresh_str .. "Evil(<=" .. inno_weight + det_weight + tra_weight + evil_weight .. ") " 
+	--	end
+	--	if neut_weight > 0 then
+	--		weight_thresh_str = weight_thresh_str .. "Neut(<=" .. inno_weight + det_weight + tra_weight + evil_weight  + neut_weight .. ") " 
+	--	end
+	--	print(weight_thresh_str)
+	--end
 	
 	local function PunishTheNonVoter(ply)
 		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
@@ -217,12 +218,12 @@ if SERVER then
 			end
 		end
 		
-		print("\nUNDEC_DEBUG CreateBallot:")
-		PrintRoleList("Innocent Role List", inno_role_list)
-		PrintRoleList("Detective Role List", det_role_list)
-		PrintRoleList("Traitor Role List", tra_role_list)
-		PrintRoleList("Evil Role List", evil_role_list)
-		PrintRoleList("Neutral Role List", neut_role_list)
+		--print("\nUNDEC_DEBUG CreateBallot:")
+		--PrintRoleList("Innocent Role List", inno_role_list)
+		--PrintRoleList("Detective Role List", det_role_list)
+		--PrintRoleList("Traitor Role List", tra_role_list)
+		--PrintRoleList("Evil Role List", evil_role_list)
+		--PrintRoleList("Neutral Role List", neut_role_list)
 		
 		--If a role list is empty, then set the corresponding weight to 0 so that we don't waste a choice trying to pick a role from it.
 		if #inno_role_list <= 0 then
@@ -241,64 +242,73 @@ if SERVER then
 			neut_weight = 0
 		end
 		
-		PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+		--UNDEC_DEBUG
+		--PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
 		
 		local total_weight = inno_weight + det_weight + tra_weight + evil_weight + neut_weight
 		for i = 1, num_choices do
 			if total_weight <= 0 then
-				print("Total weight is 0!")
+				--UNDEC_DEBUG
+				--print("Total weight is 0!")
 				break
 			end
 			
 			--Each weight is a bucket. If the random number lands in the bucket, choose a random role from the corresponding list.
 			--ExtractRandomEntry both returns a random entry in the list and removes it.
 			local r = math.random(total_weight)
-			print("Choice " .. i .. ": r=" .. r)
+			--UNDEC_DEBUG
+			--print("Choice " .. i .. ": r=" .. r)
 			if inno_weight > 0 and r <= inno_weight then
 				ballot[#ballot + 1] = table.ExtractRandomEntry(inno_role_list)
 				if #inno_role_list <= 0 then
 					total_weight = total_weight - inno_weight
 					inno_weight = 0
-					print("Innocent Role List is now empty!")
-					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+					--UNDEC_DEBUG
+					--print("Innocent Role List is now empty!")
+					--PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
 				end
 			elseif det_weight > 0 and r <= inno_weight + det_weight then
 				ballot[#ballot + 1] = table.ExtractRandomEntry(det_role_list)
 				if #det_role_list <= 0 then
 					total_weight = total_weight - det_weight
 					det_weight = 0
-					print("Detective Role List is now empty!")
-					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+					--UNDEC_DEBUG
+					--print("Detective Role List is now empty!")
+					--PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
 				end
 			elseif tra_weight > 0 and r <= inno_weight + det_weight + tra_weight then
 				ballot[#ballot + 1] = table.ExtractRandomEntry(tra_role_list)
 				if #tra_role_list <= 0 then
 					total_weight = total_weight - tra_weight
 					tra_weight = 0
-					print("Traitor Role List is now empty!")
-					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+					--UNDEC_DEBUG
+					--print("Traitor Role List is now empty!")
+					--PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
 				end
 			elseif evil_weight > 0 and r <= inno_weight + det_weight + tra_weight + evil_weight then
 				ballot[#ballot + 1] = table.ExtractRandomEntry(evil_role_list)
 				if #evil_role_list <= 0 then
 					total_weight = total_weight - evil_weight
 					evil_weight = 0
-					print("Evil Role List is now empty!")
-					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+					--UNDEC_DEBUG
+					--print("Evil Role List is now empty!")
+					--PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
 				end
 			else --r > inno_weight + det_weight + tra_weight + evil_weight
 				ballot[#ballot + 1] = table.ExtractRandomEntry(neut_role_list)
 				if #neut_role_list <= 0 then
 					total_weight = total_weight - neut_weight
 					neut_weight = 0
-					print("Neutral Role List is now empty!")
-					PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
+					--UNDEC_DEBUG
+					--print("Neutral Role List is now empty!")
+					--PrintWeightThresholds(inno_weight, det_weight, tra_weight, evil_weight, neut_weight)
 				end
 			end
 		end
 		
-		PrintRoleList("Ballot", ballot)
-		print("\n")
+		--UNDEC_DEBUG
+		--PrintRoleList("Ballot", ballot)
+		--print("\n")
 		
 		ply.undec_ballot = ballot
 		net.Start("TTT2UndecidedBallotRequest")
