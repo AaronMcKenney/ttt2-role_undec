@@ -6,7 +6,7 @@ if SERVER then
 end
 
 function ROLE:PreInitialize()
-	self.color = Color(205, 0, 205, 255)
+	self.color = Color(200, 0, 200, 255)
 	self.abbr = "undec" -- abbreviation
 	
 	self.scoreKillsMultiplier = 1
@@ -98,21 +98,24 @@ hook.Add("TTTBeginRound", "TTTBeginRoundUndecided", function()
 	NUM_PLYS_AT_ROUND_BEGIN = GetNumPlayers()
 end)
 
-local function DestroyLeftoverBallots()
+local function ResetAllUndecidedData()
 	if SERVER then
-		--Remove the ballot for everyone so that it doesn't show up next round.
-		--Do this for everyone as they may have changed roles while the ballot is up.
-		--Don't do this in the TTTBeginRound hook, as that will immediately destroy the ballots of players who spawn as Undecided.
 		for _, ply in ipairs(player.GetAll()) do
+			--Remove the ballot for everyone so that it doesn't show up next round.
+			--Do this for everyone as they may have changed roles while the ballot is up.
+			--Don't do this in the TTTBeginRound hook, as that will immediately destroy the ballots of players who spawned as Undecided.
 			DestroyBallot(ply)
+			
+			ply.undec_has_voted = nil
+			STATUS:RemoveStatus(ply, "ttt2_undec_vote")
 		end
 	end
 	
 	--Reset NUM_PLYS_AT_ROUND_BEGIN, as players may join/leave the server between now and the next TTTBeginRound
 	NUM_PLYS_AT_ROUND_BEGIN = 0
 end
-hook.Add("TTTPrepareRound", "TTTPrepareRoundUndecided", DestroyLeftoverBallots)
-hook.Add("TTTEndRound", "TTTEndRoundUndecided", DestroyLeftoverBallots)
+hook.Add("TTTPrepareRound", "TTTPrepareRoundUndecided", ResetAllUndecidedData)
+hook.Add("TTTEndRound", "TTTEndRoundUndecided", ResetAllUndecidedData)
 
 if SERVER then
 	--Print statements for UNDEC_DEBUG
@@ -152,6 +155,8 @@ if SERVER then
 	local function PunishTheNonVoter(ply)
 		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
 		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+		events.Trigger(EVENT_UNDEC_ABSTAIN, ply)
+		
 		if mode == PUNISH_MODE.DEATH then
 			ply:Kill()
 		elseif mode == PUNISH_MODE.RAND then
@@ -165,6 +170,7 @@ if SERVER then
 			SendFullStateUpdate()
 		end
 		
+		STATUS:RemoveStatus(ply, "ttt2_undec_vote")
 		ply.undec_ballot = nil
 	end
 	
@@ -337,6 +343,8 @@ if SERVER then
 		
 		DestroyBallot(ply)
 		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_has_role_id then
+			events.Trigger(EVENT_UNDEC_VOTE, ply, role_id)
+			
 			if role_id ~= ply:GetSubRole() then
 				if DOPPELGANGER and ply:GetTeam() == TEAM_DOPPELGANGER then
 					--An Undecided Doppelganger maintains their team throughout the transition.
@@ -349,6 +357,9 @@ if SERVER then
 				--If the Undecided picks their own role, give them another ballot.
 				CreateBallot(ply)
 			end
+			
+			ply.undec_has_voted = true
+			STATUS:AddStatus(ply, "ttt2_undec_vote")
 		end
 	end)
 	
@@ -380,6 +391,13 @@ if CLIENT then
 		
 		return role_str
 	end
+	
+	hook.Add("Initialize", "InitializeUndecided", function()
+		STATUS:RegisterStatus("ttt2_undec_vote", {
+			hud = Material("vgui/ttt/undec_vote.png"),
+			type = "good"
+		})
+	end)
 	
 	net.Receive("TTT2UndecidedBallotRequest", function()
 		local client = LocalPlayer()

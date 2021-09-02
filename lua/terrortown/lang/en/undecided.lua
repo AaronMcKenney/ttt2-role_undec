@@ -16,3 +16,14 @@ Failure to vote shall lead to Consequences.]]
 L["BALLOT_TITLE_" .. UNDECIDED.name] = "Choose Your Role"
 L["CONSEQUENCES_" .. UNDECIDED.name] = "YOU HAVE FAILED TO VOTE AND NOW MUST SUFFER THE CONSEQUENCES."
 L["BAD_BALLOT_" .. UNDECIDED.name] = "Bad ballot! Please yell at the admin for their blatant disenfranchisement."
+
+-- EVENT STRINGS
+-- Need to be very specifically worded, due to how the system translates them.
+L["title_event_undec_vote"] = "An Undecided player voted"
+L["desc_event_undec_vote"] = "{name} voted to become: {role}."
+L["tooltip_undec_vote_score"] = "Voted: {score}"
+L["undec_vote_score"] = "Voted:"
+L["title_event_undec_abstain"] = "An Undecided player abstained from voting"
+L["desc_event_undec_abstain"] = "{name} abstained from voting."
+L["tooltip_undec_abstain_score"] = "Abstention: {score}"
+L["undec_abstain_score"] = "Abstention:"
