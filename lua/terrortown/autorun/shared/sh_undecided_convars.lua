@@ -7,6 +7,7 @@ CreateConVar("ttt2_undecided_weight_detective", "5", {FCVAR_ARCHIVE, FCVAR_NOTFI
 CreateConVar("ttt2_undecided_weight_traitor", "15", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 CreateConVar("ttt2_undecided_weight_evil", "25", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 CreateConVar("ttt2_undecided_weight_neutral", "20", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
+CreateConVar("ttt2_undecided_can_vote_for_self", "1", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 
 hook.Add("TTTUlxDynamicRCVars", "TTTUlxDynamicUndecidedCVars", function(tbl)
 	tbl[ROLE_UNDECIDED] = tbl[ROLE_UNDECIDED] or {}
@@ -106,6 +107,14 @@ hook.Add("TTTUlxDynamicRCVars", "TTTUlxDynamicUndecidedCVars", function(tbl)
 		decimal = 0,
 		desc = "ttt2_undecided_weight_neutral (Def: 20)"
 	})
+	
+	--# Can the Undecided vote to be an Undecided?
+	--  ttt2_undecided_can_vote_for_self [0/1] (default: 1)
+	table.insert(tbl[ROLE_UNDECIDED], {
+		cvar = "ttt2_undecided_can_vote_for_self",
+		checkbox = true,
+		desc = "ttt2_undecided_can_vote_for_self (Def: 1)"
+	})
 end)
 
 hook.Add("TTT2SyncGlobals", "AddUndecidedGlobals", function()
@@ -117,6 +126,7 @@ hook.Add("TTT2SyncGlobals", "AddUndecidedGlobals", function()
 	SetGlobalInt("ttt2_undecided_weight_traitor", GetConVar("ttt2_undecided_weight_traitor"):GetInt())
 	SetGlobalInt("ttt2_undecided_weight_evil", GetConVar("ttt2_undecided_weight_evil"):GetInt())
 	SetGlobalInt("ttt2_undecided_weight_neutral", GetConVar("ttt2_undecided_weight_neutral"):GetInt())
+	SetGlobalBool("ttt2_undecided_can_vote_for_self", GetConVar("ttt2_undecided_can_vote_for_self"):GetBool())
 end)
 
 cvars.AddChangeCallback("ttt2_undecided_num_choices", function(name, old, new)
@@ -142,4 +152,7 @@ cvars.AddChangeCallback("ttt2_undecided_weight_evil", function(name, old, new)
 end)
 cvars.AddChangeCallback("ttt2_undecided_weight_neutral", function(name, old, new)
 	SetGlobalInt("ttt2_undecided_weight_neutral", tonumber(new))
+end)
+cvars.AddChangeCallback("ttt2_undecided_can_vote_for_self", function(name, old, new)
+	SetGlobalBool("ttt2_undecided_can_vote_for_self", tobool(tonumber(new)))
 end)

@@ -178,6 +178,7 @@ if SERVER then
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
 		local num_plys = GetNumPlayers()
+		local can_vote_for_self = GetConVar("ttt2_undecided_can_vote_for_self"):GetBool()
 		
 		local num_choices = GetConVar("ttt2_undecided_num_choices"):GetInt()
 		local inno_weight = GetConVar("ttt2_undecided_weight_innocent"):GetInt()
@@ -194,7 +195,7 @@ if SERVER then
 		local role_data_list = roles.GetList()
 		for i = 1, #role_data_list do
 			local role_data = role_data_list[i]
-			if role_data.notSelectable or role_data.index == ROLE_NONE then
+			if role_data.notSelectable or role_data.index == ROLE_NONE or (not can_vote_for_self and role_data.index == ROLE_UNDECIDED) then
 				--notSelectable is true for roles spawned under special circumstances, such as the Ravenous or the Graverobber.
 				--ROLE_NONE should not be messed with. It would be mildly funny if it were selectable, but would probably bug out the server.
 				continue
