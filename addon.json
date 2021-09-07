@@ -1,0 +1,13 @@
+{
+	"title"		:	"[TTT2] Undecided [ROLE]",
+	"type"		:	"ServerContent",
+    "tags"		:	[ "roleplay", "fun" ],
+    "ignore"    : [
+        ".git/*",
+        ".gitignore",
+        "README.md",
+        "ttt2-role_undec.jpg",
+        "ttt2-role_undec.txt",
+        "test_notes.txt"
+    ]
+}
