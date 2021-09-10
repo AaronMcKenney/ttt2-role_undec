@@ -44,6 +44,8 @@ end
 PUNISH_MODE = {DEATH = 0, RAND = 1, INNO = 2, JES = 3}
 --Cached variable, used if someone becomes Undecided in the middle of a round
 local NUM_PLYS_AT_ROUND_BEGIN = 0
+--Used to signify that the role may be hidden as an Innocent
+local ROLE_INNOCENT_ASTERISK = -1
 
 local function IsInSpecDM(ply)
 	if SpecDM and (ply.IsGhost and ply:IsGhost()) then
@@ -151,6 +153,25 @@ if SERVER then
 	--	end
 	--	print(weight_thresh_str)
 	--end
+	
+	local function CreateClientBallotEntry(role_id)
+		local out_role_id = role_id
+		
+		--In a few cases the client is lied to about the role that they have (Currently that's the Shinigami, Wrath, and Lycanthrope).
+		--For these cases, obscure them alongside the role that they're pretending to be, so that the client won't be able to unravel the role's secret.
+		local num_players = GetNumPlayers()
+		local shini_can_exist = (SHINIGAMI and GetConVar("ttt_shinigami_enabled"):GetBool() and num_players >= GetConVar("ttt_shinigami_min_players"):GetInt())
+		local cloaked_wrath_can_exist = (WRATH and GetConVar("ttt_wrath_enabled"):GetBool() and num_players >= GetConVar("ttt_wrath_min_players"):GetInt() and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool())
+		local cloaked_lyc_can_exist = (LYCANTHROPE and GetConVar("ttt_lycanthrope_enabled"):GetBool() and num_players >= GetConVar("ttt_lycanthrope_min_players"):GetInt() and not GetConVar("ttt2_lyc_know_role"):GetBool())
+		if (role_id == ROLE_INNOCENT and (shini_can_exist or cloaked_wrath_can_exist or cloaked_lyc_can_exist)) or
+			(SHINIGAMI and role_id == ROLE_SHINIGAMI) or
+			(WRATH and role_id == ROLE_WRATH and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool()) or
+			(LYCANTHROPE and role_id == ROLE_LYCANTHROPE and not GetConVar("ttt2_lyc_know_role"):GetBool()) then
+			out_role_id = ROLE_INNOCENT_ASTERISK
+		end
+		
+		return out_role_id
+	end
 	
 	local function PunishTheNonVoter(ply)
 		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
@@ -318,8 +339,13 @@ if SERVER then
 		--print("\n")
 		
 		ply.undec_ballot = ballot
+		
 		net.Start("TTT2UndecidedBallotRequest")
-		net.WriteTable(ply.undec_ballot)
+		local client_ballot = {}
+		for i = 1, #ply.undec_ballot do
+			client_ballot[i] = CreateClientBallotEntry(ply.undec_ballot[i])
+		end
+		net.WriteTable(client_ballot)
 		net.Send(ply)
 		
 		timer.Create("UndecidedBallotTimer_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
@@ -339,12 +365,19 @@ if SERVER then
 	end
 	
 	net.Receive("TTT2UndecidedBallotResponse", function(len, ply)
-		local role_id = net.ReadInt(16)
-		local ballot_has_role_id = (ply.undec_ballot and table.HasValue(ply.undec_ballot, role_id))
+		local ballot_id = net.ReadInt(16)
+		local ballot_id_is_valid = (ply.undec_ballot and ballot_id > 0 and ballot_id <= #ply.undec_ballot)
 		
-		DestroyBallot(ply)
-		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_has_role_id then
+		--print("UNDEC_DEBUG TTT2UndecidedBallotResponse: ply=" .. ply:GetName() .. ", ballot_id=" .. tostring(ballot_id) .. ", ballot_id_is_valid=" .. tostring(ballot_id_is_valid))
+		
+		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_id_is_valid then
+			local role_id = ply.undec_ballot[ballot_id]
 			events.Trigger(EVENT_UNDEC_VOTE, ply, role_id)
+			DestroyBallot(ply)
+			
+			--UNDEC_DEBUG
+			--local role_data = roles.GetByIndex(role_id)
+			--print("  chosen role is " .. role_data.name)
 			
 			if role_id ~= ply:GetSubRole() then
 				if DOPPELGANGER and ply:GetTeam() == TEAM_DOPPELGANGER then
@@ -361,6 +394,10 @@ if SERVER then
 			
 			ply.undec_has_voted = true
 			STATUS:AddStatus(ply, "ttt2_undec_vote")
+		else
+			LANG.Msg(ply, "INVALID_RESPONSE_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+			DestroyBallot(ply)
+			PunishTheNonVoter(ply)
 		end
 	end)
 	
@@ -373,24 +410,17 @@ if SERVER then
 end
 
 if CLIENT then
-	local function GetBallotEntryStr(role_data)
-		local role_str = LANG.TryTranslation(role_data.name)
-		
-		--In a few cases the client is lied to about the role that they have (Currently that's the Shinigami, Wrath, and Lycanthrope).
-		--For these cases, alter the string so that they along with the base Innocent appear as "Innocent*", to keep up that illusion.
-		--Theoretically, someone could hack this on the client side to bypass the illusion, but I don't think it's that big of a deal.
-		local num_players = GetNumPlayers()
-		local shini_can_exist = (SHINIGAMI and GetConVar("ttt_shinigami_enabled"):GetBool() and num_players >= GetConVar("ttt_shinigami_min_players"):GetInt())
-		local cloaked_wrath_can_exist = (WRATH and GetConVar("ttt_wrath_enabled"):GetBool() and num_players >= GetConVar("ttt_wrath_min_players"):GetInt() and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool())
-		local cloaked_lyc_can_exist = (LYCANTHROPE and GetConVar("ttt_lycanthrope_enabled"):GetBool() and num_players >= GetConVar("ttt_lycanthrope_min_players"):GetInt() and not GetConVar("ttt2_lyc_know_role"):GetBool())
-		if (role_data.index == ROLE_INNOCENT and (shini_can_exist or cloaked_wrath_can_exist or cloaked_lyc_can_exist)) or
-			(SHINIGAMI and role_data.index == ROLE_SHINIGAMI) or
-			(WRATH and role_data.index == ROLE_WRATH and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool()) or
-			(LYCANTHROPE and role_data.index == ROLE_LYCANTHROPE and not GetConVar("ttt2_lyc_know_role"):GetBool()) then
-			role_str = "Innocent*"
+	local function GetBallotEntryStr(maybe_role_id)
+		if maybe_role_id >= 0 then
+			local role_data = roles.GetByIndex(maybe_role_id)
+			return LANG.TryTranslation(role_data.name)
 		end
 		
-		return role_str
+		--Otherwise the role is lying about what it really is. Only give a hint (in the form of an asterisk) as to what it could be.
+		
+		--ROLE_INNOCENT_ASTERISK
+		local role_data = roles.GetByIndex(ROLE_INNOCENT)
+		return LANG.TryTranslation(role_data.name) .. "*"
 	end
 	
 	hook.Add("Initialize", "InitializeUndecided", function()
@@ -422,20 +452,20 @@ if CLIENT then
 			return
 		end
 		
-		for i = 1, #ballot do
-			local role_id = ballot[i]
-			local role_data = roles.GetByIndex(role_id)
-			local ballot_entry_str = GetBallotEntryStr(role_data)
+		local i = 1
+		for ballot_id, maybe_role_id in pairs(ballot) do
+			local ballot_entry_str = GetBallotEntryStr(maybe_role_id)
 			local button = vgui.Create("DButton", client.undec_frame)
 			button:SetText(ballot_entry_str)
 			button:SetPos(0, 10 + (20 * i))
 			button:SetSize(150,20)
 			button.DoClick = function()
 				net.Start("TTT2UndecidedBallotResponse")
-				net.WriteInt(role_id, 16)
+				net.WriteInt(ballot_id, 16)
 				net.SendToServer()
 				DestroyBallot()
 			end
+			i = i + 1
 		end
 		
 		hook.Add("Think", "UndecidedThink", function()

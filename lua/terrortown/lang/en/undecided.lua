@@ -16,6 +16,7 @@ Failure to vote shall lead to Consequences.]]
 L["BALLOT_TITLE_" .. UNDECIDED.name] = "Choose Your Role"
 L["CONSEQUENCES_" .. UNDECIDED.name] = "YOU HAVE FAILED TO VOTE AND NOW MUST SUFFER THE CONSEQUENCES."
 L["BAD_BALLOT_" .. UNDECIDED.name] = "Bad ballot! Please yell at the admin for their blatant disenfranchisement."
+L["INVALID_RESPONSE_" .. UNDECIDED.name] = "Invalid response to the ballot..."
 
 -- EVENT STRINGS
 -- Need to be very specifically worded, due to how the system translates them.
