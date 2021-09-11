@@ -1,6 +1,7 @@
 --ConVar syncing
 CreateConVar("ttt2_undecided_num_choices", "3", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 CreateConVar("ttt2_undecided_ballot_timer", "60", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
+CreateConVar("ttt2_undecided_time_between_ballots", "0", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 CreateConVar("ttt2_undecided_no_vote_punishment_mode", "3", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 CreateConVar("ttt2_undecided_weight_innocent", "35", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
 CreateConVar("ttt2_undecided_weight_detective", "5", {FCVAR_ARCHIVE, FCVAR_NOTFIY})
@@ -32,6 +33,17 @@ hook.Add("TTTUlxDynamicRCVars", "TTTUlxDynamicUndecidedCVars", function(tbl)
 		max = 120,
 		decimal = 0,
 		desc = "ttt2_undecided_ballot_timer (Def: 60)"
+	})
+	
+	--# How many seconds after the voting period ends does the Undecided receive another ballot (<=0 to only receive one ballot per game)?
+	--  ttt2_undecided_time_between_ballots [0..n] (default: 0)
+	table.insert(tbl[ROLE_UNDECIDED], {
+		cvar = "ttt2_undecided_time_between_ballots",
+		slider = true,
+		min = 0,
+		max = 120,
+		decimal = 0,
+		desc = "ttt2_undecided_time_between_ballots (Def: 0)"
 	})
 	
 	--# If the Undecided fails to vote, what should happen to them?
@@ -120,6 +132,7 @@ end)
 hook.Add("TTT2SyncGlobals", "AddUndecidedGlobals", function()
 	SetGlobalInt("ttt2_undecided_num_choices", GetConVar("ttt2_undecided_num_choices"):GetInt())
 	SetGlobalInt("ttt2_undecided_ballot_timer", GetConVar("ttt2_undecided_ballot_timer"):GetInt())
+	SetGlobalInt("ttt2_undecided_time_between_ballots", GetConVar("ttt2_undecided_time_between_ballots"):GetInt())
 	SetGlobalInt("ttt2_undecided_no_vote_punishment_mode", GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt())
 	SetGlobalInt("ttt2_undecided_weight_innocent", GetConVar("ttt2_undecided_weight_innocent"):GetInt())
 	SetGlobalInt("ttt2_undecided_weight_detective", GetConVar("ttt2_undecided_weight_detective"):GetInt())
@@ -134,6 +147,9 @@ cvars.AddChangeCallback("ttt2_undecided_num_choices", function(name, old, new)
 end)
 cvars.AddChangeCallback("ttt2_undecided_ballot_timer", function(name, old, new)
 	SetGlobalInt("ttt2_undecided_ballot_timer", tonumber(new))
+end)
+cvars.AddChangeCallback("ttt2_undecided_time_between_ballots", function(name, old, new)
+	SetGlobalInt("ttt2_undecided_time_between_ballots", tonumber(new))
 end)
 cvars.AddChangeCallback("ttt2_undecided_no_vote_punishment_mode", function(name, old, new)
 	SetGlobalInt("ttt2_undecided_no_vote_punishment_mode", tonumber(new))

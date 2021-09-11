@@ -31,6 +31,8 @@ function ROLE:PreInitialize()
 		random = 30,
 		traitorButton = 0,
 		
+		--The Undecided starts with 0 credits, which in turn means that if they become a shopping role they will still have 0 credits.
+		--While this is lame, it is probably better than giving them credits for game balance reasons.
 		credits = 0,
 		creditsTraitorKill = 0,
 		creditsTraitorDead = 0,
@@ -108,6 +110,10 @@ local function ResetAllUndecidedData()
 			--Don't do this in the TTTBeginRound hook, as that will immediately destroy the ballots of players who spawned as Undecided.
 			DestroyBallot(ply)
 			
+			if timer.Exists("UndecidedNewBallotTimer_Server_" .. ply:SteamID64()) then
+				timer.Remove("UndecidedNewBallotTimer_Server_" .. ply:SteamID64())
+			end
+			
 			ply.undec_has_voted = nil
 			STATUS:RemoveStatus(ply, "ttt2_undec_vote")
 		end
@@ -120,6 +126,9 @@ hook.Add("TTTPrepareRound", "TTTPrepareRoundUndecided", ResetAllUndecidedData)
 hook.Add("TTTEndRound", "TTTEndRoundUndecided", ResetAllUndecidedData)
 
 if SERVER then
+	--Forward declaration needed as both SetDeadlineForNewBallot and CreateBallot call each other.
+	local CreateBallot, SetDeadlineForNewBallot
+	
 	--Print statements for UNDEC_DEBUG
 	--local function PrintRoleList(title, role_list)
 	--	local role_list_str = title .. ": ["
@@ -175,7 +184,7 @@ if SERVER then
 	
 	local function PunishTheNonVoter(ply)
 		local mode = GetConVar("ttt2_undecided_no_vote_punishment_mode"):GetInt()
-		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+		LANG.Msg(ply, "CONSEQUENCES_" .. UNDECIDED.name, nil, MSG_MSTACK_WARN)
 		events.Trigger(EVENT_UNDEC_ABSTAIN, ply)
 		
 		if mode == PUNISH_MODE.DEATH then
@@ -192,10 +201,11 @@ if SERVER then
 		end
 		
 		STATUS:RemoveStatus(ply, "ttt2_undec_vote")
-		ply.undec_ballot = nil
 	end
 	
-	local function CreateBallot(ply)
+	function CreateBallot(ply)
+		STATUS:RemoveStatus(ply, "ttt2_undec_vote")
+		
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
 		local num_plys = GetNumPlayers()
@@ -351,8 +361,24 @@ if SERVER then
 		timer.Create("UndecidedBallotTimer_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
 			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot then
 				PunishTheNonVoter(ply)
+				SetDeadlineForNewBallot(ply)
 			end
 		end)
+	end
+	
+	function SetDeadlineForNewBallot(ply)
+		local time_between_ballots = GetConVar("ttt2_undecided_time_between_ballots"):GetInt()
+		
+		if time_between_ballots > 0 then
+			timer.Create("UndecidedNewBallotTimer_Server_" .. ply:SteamID64(), time_between_ballots, 1, function()
+				if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) then
+					DestroyBallot(ply)
+					CreateBallot(ply)
+				end
+			end)
+			
+			STATUS:AddTimedStatus(ply, "ttt2_undec_between_ballots", time_between_ballots, true)
+		end
 	end
 	
 	function ROLE:GiveRoleLoadout(ply, isRoleChange)
@@ -361,7 +387,9 @@ if SERVER then
 			DestroyBallot(ply)
 		end
 		
-		CreateBallot(ply)
+		if GetRoundState() ~= ROUND_POST then
+			CreateBallot(ply)
+		end
 	end
 	
 	net.Receive("TTT2UndecidedBallotResponse", function(len, ply)
@@ -372,8 +400,8 @@ if SERVER then
 		
 		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_id_is_valid then
 			local role_id = ply.undec_ballot[ballot_id]
-			events.Trigger(EVENT_UNDEC_VOTE, ply, role_id)
 			DestroyBallot(ply)
+			events.Trigger(EVENT_UNDEC_VOTE, ply, role_id)
 			
 			--UNDEC_DEBUG
 			--local role_data = roles.GetByIndex(role_id)
@@ -387,17 +415,27 @@ if SERVER then
 					ply:SetRole(role_id)
 				end
 				SendFullStateUpdate()
-			elseif role_id == ROLE_UNDECIDED then
-				--If the Undecided picks their own role, give them another ballot.
-				CreateBallot(ply)
 			end
 			
-			ply.undec_has_voted = true
-			STATUS:AddStatus(ply, "ttt2_undec_vote")
+			if role_id == ROLE_UNDECIDED then
+				--If the Undecided picks their own role, give them another ballot.
+				--Picking the Undecided role does not count as voting.
+				CreateBallot(ply)
+			else
+				--Mark the player as having voted.
+				ply.undec_has_voted = true
+				STATUS:AddStatus(ply, "ttt2_undec_vote")
+				
+				SetDeadlineForNewBallot(ply)
+			end
 		else
-			LANG.Msg(ply, "INVALID_RESPONSE_" .. UNDECIDED.name, nil, MSG_MSTACK_ROLE)
+			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and not ballot_id_is_valid then
+				LANG.Msg(ply, "INVALID_RESPONSE_" .. UNDECIDED.name, {i=tostring(ballot_id), n=tostring(#ply.undec_ballot)}, MSG_MSTACK_WARN)
+				PunishTheNonVoter(ply)
+				SetDeadlineForNewBallot(ply)
+			end
+			
 			DestroyBallot(ply)
-			PunishTheNonVoter(ply)
 		end
 	end)
 	
@@ -427,6 +465,10 @@ if CLIENT then
 		STATUS:RegisterStatus("ttt2_undec_vote", {
 			hud = Material("vgui/ttt/undec_vote.png"),
 			type = "good"
+		})
+		STATUS:RegisterStatus("ttt2_undec_between_ballots", {
+			hud = Material("vgui/ttt/dynamic/roles/icon_undec.vtf"),
+			type = "bad"
 		})
 	end)
 	

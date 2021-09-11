@@ -53,6 +53,8 @@ Convars are variables that are introduced to allow server owners to customize th
   ttt2_undecided_num_choices [2..n] (default: 3)
 # How many seconds does the Undecided have to choose their role?
   ttt2_undecided_ballot_timer [0..n] (default: 60)
+# How many seconds after the voting period ends does the Undecided receive another ballot (<=0 to only receive one ballot per game)?
+  ttt2_undecided_time_between_ballots [0..n] (default: 0)
 # If the Undecided fails to vote, what should happen to them?
   ttt2_undecided_no_vote_punishment_mode [0..3] (default: 3)
   # 0: D E A T H   P E N A L T Y
