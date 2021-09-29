@@ -99,6 +99,8 @@ end
 hook.Add("TTTBeginRound", "TTTBeginRoundUndecided", function()
 	--Note: This is for when someone becomes an Undecided in the middle of a round.
 	--Roles are assigned before BeginRound, so NUM_PLYS_AT_ROUND_BEGIN won't be used for undecideds at the start of the game.
+	--However, explicitly assign NUM_PLYS_AT_ROUND_BEGIN here as we only know how many players there actually are right here.
+	
 	NUM_PLYS_AT_ROUND_BEGIN = GetNumPlayers()
 end)
 
@@ -203,13 +205,35 @@ if SERVER then
 		STATUS:RemoveStatus(ply, "ttt2_undec_vote")
 	end
 	
+	local function RoleCanAppearOnBallot(role_data)
+		local num_plys = GetNumPlayers()
+		local can_vote_for_self = GetConVar("ttt2_undecided_can_vote_for_self"):GetBool()
+		
+		if role_data.notSelectable or role_data.index == ROLE_NONE or (not can_vote_for_self and role_data.index == ROLE_UNDECIDED) then
+			--notSelectable is true for roles spawned under special circumstances, such as the Ravenous or the Graverobber.
+			--ROLE_NONE should not be messed with. It would be mildly funny if it were selectable, but would probably bug out the server.
+			return false
+		end
+		
+		--role_data.builtin will be true for INNOCENT and TRAITOR, which are always enabled.
+		local enabled = true
+		local min_players = 0
+		if not role_data.builtin then
+			enabled = GetConVar("ttt_" .. role_data.name .. "_enabled"):GetBool()
+			min_players = GetConVar("ttt_" .. role_data.name .. "_min_players"):GetInt()
+		end
+		if not enabled or min_players > num_plys then
+			return false
+		end
+		
+		return true
+	end
+	
 	function CreateBallot(ply)
 		STATUS:RemoveStatus(ply, "ttt2_undec_vote")
 		
 		--Could shorten this function by combining the groups into a table, but its not that big of a deal. May need to do that if feature bloat occurs.
 		local ballot = {}
-		local num_plys = GetNumPlayers()
-		local can_vote_for_self = GetConVar("ttt2_undecided_can_vote_for_self"):GetBool()
 		
 		local num_choices = GetConVar("ttt2_undecided_num_choices"):GetInt()
 		local inno_weight = GetConVar("ttt2_undecided_weight_innocent"):GetInt()
@@ -226,20 +250,7 @@ if SERVER then
 		local role_data_list = roles.GetList()
 		for i = 1, #role_data_list do
 			local role_data = role_data_list[i]
-			if role_data.notSelectable or role_data.index == ROLE_NONE or (not can_vote_for_self and role_data.index == ROLE_UNDECIDED) then
-				--notSelectable is true for roles spawned under special circumstances, such as the Ravenous or the Graverobber.
-				--ROLE_NONE should not be messed with. It would be mildly funny if it were selectable, but would probably bug out the server.
-				continue
-			end
-			
-			--role_data.builtin will be true for INNOCENT and TRAITOR, which are always enabled.
-			local enabled = true
-			local min_players = 0
-			if not role_data.builtin then
-				enabled = GetConVar("ttt_" .. role_data.name .. "_enabled"):GetBool()
-				min_players = GetConVar("ttt_" .. role_data.name .. "_min_players"):GetInt()
-			end
-			if not enabled or min_players > num_plys then
+			if not RoleCanAppearOnBallot(role_data) then
 				continue
 			end
 			
@@ -400,7 +411,15 @@ if SERVER then
 		
 		if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ballot_id_is_valid then
 			local role_id = ply.undec_ballot[ballot_id]
+			local role_data = roles.GetByIndex(role_id)
 			DestroyBallot(ply)
+			
+			if not RoleCanAppearOnBallot(role_data) then
+				LANG.Msg(ply, "BAD_ROLE_" .. UNDECIDED.name, {role=role_data.name}, MSG_MSTACK_WARN)
+				CreateBallot(ply)
+				return
+			end
+			
 			events.Trigger(EVENT_UNDEC_VOTE, ply, role_id)
 			
 			--UNDEC_DEBUG

@@ -17,6 +17,7 @@ L["BALLOT_TITLE_" .. UNDECIDED.name] = "Choose Your Role"
 L["CONSEQUENCES_" .. UNDECIDED.name] = "YOU HAVE FAILED TO VOTE AND NOW MUST SUFFER THE CONSEQUENCES."
 L["BAD_BALLOT_" .. UNDECIDED.name] = "Bad ballot! Please yell at the admin for their blatant disenfranchisement."
 L["INVALID_RESPONSE_" .. UNDECIDED.name] = "Invalid response to the ballot! Received an id of '{i}', which is not in range of 1 and {n}."
+L["BAD_ROLE_" .. UNDECIDED.name] = "{role} wasn't supposed to be on the ballot at all! Report this to your admin. In the meantime, here's a new ballot."
 
 -- EVENT STRINGS
 -- Need to be very specifically worded, due to how the system translates them.
