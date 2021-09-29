@@ -41,7 +41,7 @@ hook.Add("TTTUlxDynamicRCVars", "TTTUlxDynamicUndecidedCVars", function(tbl)
 		cvar = "ttt2_undecided_time_between_ballots",
 		slider = true,
 		min = 0,
-		max = 120,
+		max = 240,
 		decimal = 0,
 		desc = "ttt2_undecided_time_between_ballots (Def: 0)"
 	})
