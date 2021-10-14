@@ -9,12 +9,11 @@ function ROLE:PreInitialize()
 	self.color = Color(200, 0, 200, 255)
 	self.abbr = "undec" -- abbreviation
 	
-	self.scoreKillsMultiplier = 1
-	self.scoreTeamKillsMultiplier = -8
+	self.score.teamKillsMultiplier = 0
+	self.score.killsMultiplier = 0
+	self.score.aliveTeammatesBonusMultiplier = 0
 	
 	self.preventFindCredits = true
-	self.preventKillCredits = true
-	self.preventTraitorAloneCredits = true
 	
 	self.fallbackTable = {}
 	self.unknownTeam = true -- disables team voice chat.
@@ -34,8 +33,8 @@ function ROLE:PreInitialize()
 		--The Undecided starts with 0 credits, which in turn means that if they become a shopping role they will still have 0 credits.
 		--While this is lame, it is probably better than giving them credits for game balance reasons.
 		credits = 0,
-		creditsTraitorKill = 0,
-		creditsTraitorDead = 0,
+		creditsAwardDeadEnable = 0,
+		creditsAwardKillEnable = 0,
 		shopFallback = SHOP_DISABLED,
 		
 		togglable = true
