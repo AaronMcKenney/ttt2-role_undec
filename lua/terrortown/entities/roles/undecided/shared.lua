@@ -41,8 +41,6 @@ function ROLE:PreInitialize()
 	}
 end
 
---Punishment Mode Enum for failing to vote in time.
-PUNISH_MODE = {DEATH = 0, RAND = 1, INNO = 2, JES = 3}
 --Cached variable, used if someone becomes Undecided in the middle of a round
 local NUM_PLYS_AT_ROUND_BEGIN = 0
 --Used to signify that the role may be hidden as an Innocent
@@ -127,6 +125,8 @@ hook.Add("TTTPrepareRound", "TTTPrepareRoundUndecided", ResetAllUndecidedData)
 hook.Add("TTTEndRound", "TTTEndRoundUndecided", ResetAllUndecidedData)
 
 if SERVER then
+	--Punishment Mode Enum for failing to vote in time.
+	local PUNISH_MODE = {DEATH = 0, RAND = 1, INNO = 2, JES = 3}
 	--Forward declaration needed as both SetDeadlineForNewBallot and CreateBallot call each other.
 	local CreateBallot, SetDeadlineForNewBallot
 	
