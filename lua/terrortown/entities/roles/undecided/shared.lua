@@ -175,6 +175,7 @@ if SERVER then
 		local cloaked_lyc_can_exist = (LYCANTHROPE and GetConVar("ttt_lycanthrope_enabled"):GetBool() and num_players >= GetConVar("ttt_lycanthrope_min_players"):GetInt() and not GetConVar("ttt2_lyc_know_role"):GetBool())
 		if (role_id == ROLE_INNOCENT and (shini_can_exist or cloaked_wrath_can_exist or cloaked_lyc_can_exist)) or
 			(SHINIGAMI and role_id == ROLE_SHINIGAMI) or
+			(REVENANT and role_id == ROLE_REVENANT) or
 			(WRATH and role_id == ROLE_WRATH and GetConVar("ttt_wrath_cannot_see_own_role"):GetBool()) or
 			(LYCANTHROPE and role_id == ROLE_LYCANTHROPE and not GetConVar("ttt2_lyc_know_role"):GetBool()) then
 			out_role_id = ROLE_INNOCENT_ASTERISK
