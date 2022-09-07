@@ -480,7 +480,7 @@ if CLIENT then
 		return LANG.TryTranslation(role_data.name) .. "*"
 	end
 	
-	hook.Add("Initialize", "InitializeUndecided", function()
+	hook.Add("Initialize", "RegisteringStatusOnInitializeForUndecided", function()
 		STATUS:RegisterStatus("ttt2_undec_vote", {
 			hud = Material("vgui/ttt/undec_vote.png"),
 			type = "good"
