@@ -403,6 +403,15 @@ if SERVER then
 		end
 	end
 	
+	local function IsStickyTeam(team)
+		--A hack. True if the supported team is not to be altered for balancing reasons.
+		if (DOPPELGANGER and team == TEAM_DOPPELGANGER) or (COPYCAT and team == TEAM_COPYCAT) then
+			return true
+		end
+		
+		return false
+	end
+	
 	net.Receive("TTT2UndecidedBallotResponse", function(len, ply)
 		local ballot_id = net.ReadInt(16)
 		local ballot_id_is_valid = (ply.undec_ballot and ballot_id > 0 and ballot_id <= #ply.undec_ballot)
@@ -427,9 +436,10 @@ if SERVER then
 			--print("  chosen role is " .. role_data.name)
 			
 			if role_id ~= ply:GetSubRole() then
-				if DOPPELGANGER and ply:GetTeam() == TEAM_DOPPELGANGER then
-					--An Undecided Doppelganger maintains their team throughout the transition.
-					ply:SetRole(role_id, TEAM_DOPPELGANGER)
+				if IsStickyTeam(ply:GetTeam()) then
+					--An Undecided Doppelganger/Copycat maintains their team throughout the transition.
+					--Allows for the Dop!Undec/Copy!Undec to extend their role changing abilities.
+					ply:SetRole(role_id, ply:GetTeam())
 				else
 					ply:SetRole(role_id)
 				end
