@@ -550,4 +550,98 @@ if CLIENT then
 	net.Receive("TTT2UndecidedBallotResponse", function()
 		DestroyBallot()
 	end)
+
+	-------------
+	-- CONVARS --
+	-------------
+	function ROLE:AddToSettingsMenu(parent)
+		local form = vgui.CreateTTT2Form(parent, "header_roles_additional")
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_num_choices",
+			label = "label_undecided_num_choices",
+			min = 2,
+			max = 10,
+			decimal = 0,
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_ballot_timer",
+			label = "label_undecided_ballot_timer",
+			min = 5,
+			max = 120,
+			decimal = 0,
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_time_between_ballots",
+			label = "label_undecided_time_between_ballots",
+			min = 0,
+			max = 240,
+			decimal = 0,
+		})
+
+		form:MakeComboBox({
+			serverConvar = "ttt2_undecided_no_vote_punishment_mode",
+			label = "label_undecided_no_vote_punishment_mode",
+			choices = {{
+				value = 0,
+				title = LANG.GetTranslation("label_undecided_no_vote_punishment_mode_0")
+			},{
+				value = 1,
+				title = LANG.GetTranslation("label_undecided_no_vote_punishment_mode_1")
+			},{
+				value = 2,
+				title = LANG.GetTranslation("label_undecided_no_vote_punishment_mode_2")
+			},{
+				value = 3,
+				title = LANG.GetTranslation("label_undecided_no_vote_punishment_mode_3")
+			}}
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_weight_innocent",
+			label = "label_undecided_weight_innocent",
+			min = 0,
+			max = 100,
+			decimal = 0,
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_weight_detective",
+			label = "label_undecided_weight_detective",
+			min = 0,
+			max = 100,
+			decimal = 0,
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_weight_traitor",
+			label = "label_undecided_weight_traitor",
+			min = 0,
+			max = 100,
+			decimal = 0,
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_weight_evil",
+			label = "label_undecided_weight_evil",
+			min = 0,
+			max = 100,
+			decimal = 0,
+		})
+
+		form:MakeSlider({
+			serverConvar = "ttt2_undecided_weight_neutral",
+			label = "label_undecided_weight_neutral",
+			min = 0,
+			max = 100,
+			decimal = 0,
+		})
+
+		form:MakeCheckBox({
+			serverConvar = "ttt2_undecided_can_vote_for_self",
+			label = "label_undecided_can_vote_for_self"
+		})
+	end
 end
