@@ -74,7 +74,12 @@ Convars are variables that are introduced to allow server owners to customize th
 # What is the weight of the possibiilty for a role that has no discernable team (ex. Amnesiac, Drunk) from being presented to the Undecided?
   ttt2_undecided_weight_neutral [0..n] (default: 20)
 # Can the Undecided vote to be an Undecided?
-  ttt2_undecided_can_vote_for_self [0/1] (default: 1)[/code]
+  ttt2_undecided_can_vote_for_self [0/1] (default: 1)
+# For a role to appear on the ballot, it must be:
+  ttt2_undecided_role_enable_mode [0..2] (default: 0)
+  # 0: Enabled on the server
+  # 1: Disabled on the server (The ballot will consist of roles no one else can have)
+  # 2: Either enabled or disabled on the server[/code]
  
 --
 [h1]Credits:[/h1]

@@ -9,3 +9,4 @@ CreateConVar("ttt2_undecided_weight_traitor", "15", {FCVAR_ARCHIVE, FCVAR_NOTFIY
 CreateConVar("ttt2_undecided_weight_evil", "25", {FCVAR_ARCHIVE, FCVAR_NOTFIY, FCVAR_REPLICATED})
 CreateConVar("ttt2_undecided_weight_neutral", "20", {FCVAR_ARCHIVE, FCVAR_NOTFIY, FCVAR_REPLICATED})
 CreateConVar("ttt2_undecided_can_vote_for_self", "1", {FCVAR_ARCHIVE, FCVAR_NOTFIY, FCVAR_REPLICATED})
+CreateConVar("ttt2_undecided_role_enable_mode", "0", {FCVAR_ARCHIVE, FCVAR_NOTFIY, FCVAR_REPLICATED})

@@ -127,6 +127,7 @@ hook.Add("TTTEndRound", "TTTEndRoundUndecided", ResetAllUndecidedData)
 if SERVER then
 	--Punishment Mode Enum for failing to vote in time.
 	local PUNISH_MODE = {DEATH = 0, RAND = 1, INNO = 2, JES = 3}
+	local ENABLE_MODE = {EN = 0, DIS = 1, EN_OR_DIS = 2}
 	--Forward declaration needed as both SetDeadlineForNewBallot and CreateBallot call each other.
 	local CreateBallot, SetDeadlineForNewBallot
 	
@@ -181,6 +182,9 @@ if SERVER then
 			out_role_id = ROLE_INNOCENT_ASTERISK
 		end
 		
+		--Does not handle the case where the Undecided can vote on roles not normally enabled, and all of the cloaked special innocent roles are disabled.
+		--No plans to handle that case: it only occurs during debug sessions for edge cases, and can't think of an edge case where it's necessary.
+		
 		return out_role_id
 	end
 	
@@ -207,14 +211,13 @@ if SERVER then
 	
 	local function RoleCanAppearOnBallot(role_data)
 		local num_plys = GetNumPlayers()
-		local can_vote_for_self = GetConVar("ttt2_undecided_can_vote_for_self"):GetBool()
-		
-		if role_data.notSelectable or role_data.index == ROLE_NONE or (not can_vote_for_self and role_data.index == ROLE_UNDECIDED) then
+
+		if role_data.notSelectable or role_data.index == ROLE_NONE then
 			--notSelectable is true for roles spawned under special circumstances, such as the Ravenous or the Graverobber.
 			--ROLE_NONE should not be messed with. It would be mildly funny if it were selectable, but would probably bug out the server.
 			return false
 		end
-		
+
 		--role_data.builtin will be true for INNOCENT and TRAITOR, which are always enabled.
 		local enabled = true
 		local min_players = 0
@@ -222,6 +225,19 @@ if SERVER then
 			enabled = GetConVar("ttt_" .. role_data.name .. "_enabled"):GetBool()
 			min_players = GetConVar("ttt_" .. role_data.name .. "_min_players"):GetInt()
 		end
+
+		--Feature request for those who want the Undecided to select between roles normally unavailable.
+		if GetConVar("ttt2_undecided_role_enable_mode"):GetInt() == ENABLE_MODE.DIS then
+			enabled = not enabled
+		elseif GetConVar("ttt2_undecided_role_enable_mode"):GetInt() == ENABLE_MODE.EN_OR_DIS then
+			enabled = true
+		end
+
+		--can_vote_for_self overrides ttt2_undecided_role_enable_mode
+		if role_data.index == ROLE_UNDECIDED then
+			enabled = GetConVar("ttt2_undecided_can_vote_for_self"):GetBool()
+		end
+
 		if not enabled or min_players > num_plys then
 			return false
 		end
@@ -642,6 +658,21 @@ if CLIENT then
 		form:MakeCheckBox({
 			serverConvar = "ttt2_undecided_can_vote_for_self",
 			label = "label_undecided_can_vote_for_self"
+		})
+
+		form:MakeComboBox({
+			serverConvar = "ttt2_undecided_role_enable_mode",
+			label = "label_undecided_role_enable_mode",
+			choices = {{
+				value = 0,
+				title = LANG.GetTranslation("label_undecided_role_enable_mode_0")
+			},{
+				value = 1,
+				title = LANG.GetTranslation("label_undecided_role_enable_mode_1")
+			},{
+				value = 2,
+				title = LANG.GetTranslation("label_undecided_role_enable_mode_2")
+			}}
 		})
 	end
 end
