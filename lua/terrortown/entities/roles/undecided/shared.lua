@@ -383,11 +383,13 @@ if SERVER then
 			client_ballot[i] = CreateClientBallotEntry(ply.undec_ballot[i])
 		end
 		net.WriteTable(client_ballot)
+		net.WriteInt(GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 16)
 		net.Send(ply)
 		
 		timer.Create("UndecidedBallotTimer_Server_" .. ply:SteamID64(), GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
 			if GetRoundState() == ROUND_ACTIVE and ply:Alive() and not IsInSpecDM(ply) and ply.undec_ballot then
 				PunishTheNonVoter(ply)
+				DestroyBallot(ply)
 				SetDeadlineForNewBallot(ply)
 			end
 		end)
@@ -520,9 +522,10 @@ if CLIENT then
 	net.Receive("TTT2UndecidedBallotRequest", function()
 		local client = LocalPlayer()
 		local ballot = net.ReadTable()
+		local ballot_timer = net.ReadInt(16)
 		
 		DestroyBallot()
-		timer.Create("UndecidedBallotTimer_Client", GetConVar("ttt2_undecided_ballot_timer"):GetInt(), 1, function()
+		timer.Create("UndecidedBallotTimer_Client", ballot_timer, 1, function()
 			DestroyBallot()
 		end)
 		client.undec_frame = vgui.Create("DFrame")
